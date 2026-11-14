@@ -1,13 +1,17 @@
 {
   "expo": {
-    "name": "stargaze",
+    "name": "Stargaze",
     "slug": "stargaze",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.samay.stargaze",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -20,6 +24,29 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Stargaze uses the camera to show the live sky behind the star map.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Stargaze uses your location to work out which stars are above you."
+        }
+      ],
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "Stargaze uses motion sensors to match the star map to where you point your phone."
+        }
+      ]
+    ],
+    "scheme": "stargaze"
   }
 }

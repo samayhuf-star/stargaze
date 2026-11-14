@@ -1,0 +1,282 @@
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useKeepAwake } from 'expo-keep-awake';
+import { router } from 'expo-router';
+import Slider from '@react-native-community/slider';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Switch, Text, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { InfoCard } from '../components/InfoCard';
+import { Pill } from '../components/Pill';
+import { useObserver } from '../lib/location';
+import { useDeviceView } from '../lib/orientation';
+import { usePro } from '../lib/purchases';
+import { SkyCanvas, type SkyOptions } from '../sky/SkyCanvas';
+import { clampAlt } from '../sky/projection';
+import { COLORS, NIGHT_RED } from '../sky/theme';
+import type { SkyObject, View as SkyView } from '../sky/types';
+
+const FREE_TIME_LIMIT_MIN = 60;
+const FREE_MAG = 4.5;
+const PRO_MAG = 5.5;
+
+export default function SkyScreen() {
+  useKeepAwake();
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const { isPro, openPaywall, unconfigured, devTogglePro, restore, manageSubscription } = usePro();
+  const { observer, source, permission: locPermission } = useObserver();
+  const [camPermission, requestCamPermission] = useCameraPermissions();
+
+  const [live, setLive] = useState(true);
+  const [camera, setCamera] = useState(true);
+  const [lines, setLines] = useState(true);
+  const [labels, setLabels] = useState(true);
+  const [night, setNight] = useState(false);
+  const [dsos, setDsos] = useState(false);
+  const [invertTilt, setInvertTilt] = useState(false);
+  const [headingOffset, setHeadingOffset] = useState(0);
+  const [offsetMin, setOffsetMin] = useState(0);
+  const [selected, setSelected] = useState<SkyObject | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+
+  const device = useDeviceView(live, invertTilt, headingOffset);
+  const [manual, setManual] = useState<SkyView>({ az: 180, alt: 35, fov: 60 });
+  const [fov, setFov] = useState(60);
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 15000);
+    return () => clearInterval(t);
+  }, []);
+
+  const sensorsOk = live && device.status === 'ok';
+  const view: SkyView = sensorsOk ? { az: device.az, alt: clampAlt(device.alt), fov } : { ...manual, fov };
+
+  // Keep refs so the PanResponder (created once) always sees current values.
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const fovRef = useRef(fov);
+  fovRef.current = fov;
+  const heightRef = useRef(height);
+  heightRef.current = height;
+  const liveRef = useRef(live);
+  liveRef.current = live;
+
+  const pinch = useRef({ startDist: 0, startFov: 60 });
+  const drag = useRef({ az: 0, alt: 0 });
+
+  const touchDist = (t: readonly { pageX: number; pageY: number }[]) => Math.hypot(t[0].pageX - t[1].pageX, t[0].pageY - t[1].pageY);
+
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) + Math.abs(g.dy) > 6,
+        onPanResponderGrant: (e) => {
+          const v = viewRef.current;
+          drag.current = { az: v.az, alt: v.alt };
+          if (e.nativeEvent.touches.length === 2) pinch.current = { startDist: touchDist(e.nativeEvent.touches), startFov: fovRef.current };
+        },
+        onPanResponderMove: (e, g) => {
+          const touches = e.nativeEvent.touches;
+          if (touches.length === 2) {
+            if (pinch.current.startDist === 0) pinch.current = { startDist: touchDist(touches), startFov: fovRef.current };
+            const ratio = pinch.current.startDist / touchDist(touches);
+            setFov(Math.max(15, Math.min(100, pinch.current.startFov * ratio)));
+            return;
+          }
+          pinch.current.startDist = 0;
+          if (liveRef.current) setLive(false); // dragging takes manual control
+          const dpp = fovRef.current / heightRef.current;
+          setManual({
+            az: (((drag.current.az - g.dx * dpp) % 360) + 360) % 360,
+            alt: clampAlt(drag.current.alt + g.dy * dpp),
+            fov: fovRef.current,
+          });
+        },
+        onPanResponderRelease: () => {
+          pinch.current.startDist = 0;
+        },
+      }),
+    [],
+  );
+
+  const date = useMemo(() => new Date(now + offsetMin * 60000), [now, offsetMin]);
+
+  const toggleCamera = useCallback(async () => {
+    if (camera) return setCamera(false);
+    if (!camPermission?.granted) {
+      const r = await requestCamPermission();
+      if (!r.granted) return Alert.alert('Camera access is off', 'Allow the camera in Settings to see the sky behind the star map.');
+    }
+    setCamera(true);
+  }, [camera, camPermission, requestCamPermission]);
+
+  const requirePro = useCallback(
+    async (action: () => void) => {
+      if (isPro) return action();
+      const bought = await openPaywall();
+      if (bought) action();
+    },
+    [isPro, openPaywall],
+  );
+
+  const showCamera = camera && !!camPermission?.granted;
+  const options: SkyOptions = {
+    magLimit: isPro ? PRO_MAG : FREE_MAG,
+    showConstellations: lines,
+    showLabels: labels,
+    showDsos: isPro && dsos,
+    night,
+    opaque: !showCamera,
+  };
+
+  const accent = night ? NIGHT_RED.accent : COLORS.accent;
+  const timeLabel =
+    offsetMin === 0
+      ? 'Now'
+      : `${offsetMin > 0 ? '+' : '−'}${Math.floor(Math.abs(offsetMin) / 60)}h ${Math.abs(offsetMin) % 60}m · ${date.toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}`;
+
+  return (
+    <View style={styles.root} {...pan.panHandlers}>
+      {showCamera && <CameraView style={StyleSheet.absoluteFill} facing="back" />}
+      {showCamera && night && <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(40,0,0,0.65)' }]} pointerEvents="none" />}
+
+      <SkyCanvas
+        width={width}
+        height={height}
+        view={view}
+        date={date}
+        observer={observer}
+        options={options}
+        selectedId={selected?.id ?? null}
+        onSelect={setSelected}
+      />
+
+      {/* Top bar */}
+      <View style={[styles.top, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
+        <View style={styles.topRow}>
+          <View style={styles.statusPill}>
+            <Text style={styles.statusText}>
+              {source === 'gps' ? `${observer.lat.toFixed(1)}°, ${observer.lon.toFixed(1)}°` : locPermission === 'denied' ? 'Location off · New Delhi' : 'Finding location…'}
+            </Text>
+          </View>
+          <View style={styles.topRight}>
+            {!isPro && <Pill label="PRO" onPress={openPaywall} active night={night} />}
+            <Pill label="⚙︎" onPress={() => setSettingsOpen(true)} night={night} />
+          </View>
+        </View>
+        {live && device.status === 'unavailable' && <Text style={styles.hint}>Motion sensors unavailable. Drag to explore the sky.</Text>}
+        {sensorsOk && device.accuracy < 2 && <Text style={styles.hint}>Compass needs calibration: wave the phone in a figure 8.</Text>}
+        {!live && <Text style={styles.hint}>Drag to look around, pinch to zoom.</Text>}
+      </View>
+
+      {/* Bottom controls */}
+      <View style={[styles.bottom, { paddingBottom: insets.bottom + 10 }]} pointerEvents="box-none">
+        {selected && <InfoCard obj={selected} night={night} />}
+
+        <View style={styles.sliderRow}>
+          <Text style={[styles.timeLabel, { color: night ? NIGHT_RED.label : COLORS.text }]}>{timeLabel}</Text>
+          {offsetMin !== 0 && (
+            <Pressable onPress={() => setOffsetMin(0)} hitSlop={10}>
+              <Text style={{ color: accent, fontWeight: '700', fontSize: 13 }}>Reset</Text>
+            </Pressable>
+          )}
+        </View>
+        <Slider
+          minimumValue={-720}
+          maximumValue={720}
+          step={5}
+          value={offsetMin}
+          minimumTrackTintColor={accent}
+          maximumTrackTintColor="rgba(255,255,255,0.25)"
+          thumbTintColor={accent}
+          onValueChange={(v) => setOffsetMin(isPro ? v : Math.max(-FREE_TIME_LIMIT_MIN, Math.min(FREE_TIME_LIMIT_MIN, v)))}
+          onSlidingComplete={async (v) => {
+            if (!isPro && Math.abs(v) > FREE_TIME_LIMIT_MIN) {
+              setOffsetMin(Math.sign(v) * FREE_TIME_LIMIT_MIN);
+              await openPaywall();
+            }
+          }}
+        />
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pills}>
+          <Pill label={live ? 'Live' : 'Drag'} active={live} night={night} onPress={() => setLive((l) => !l)} />
+          <Pill label="Camera" active={showCamera} night={night} onPress={toggleCamera} />
+          <Pill label="Lines" active={lines} night={night} onPress={() => setLines((v) => !v)} />
+          <Pill label="Names" active={labels} night={night} onPress={() => setLabels((v) => !v)} />
+          <Pill label="Night" active={night} night={night} onPress={() => setNight((v) => !v)} />
+          <Pill label="Messier" active={isPro && dsos} night={night} badge={isPro ? undefined : 'PRO'} onPress={() => requirePro(() => setDsos((v) => !v))} />
+          <Pill label="Tonight" night={night} badge={isPro ? undefined : 'PRO'} onPress={() => requirePro(() => router.push('/tonight'))} />
+        </ScrollView>
+      </View>
+
+      <Modal visible={settingsOpen} animationType="slide" transparent onRequestClose={() => setSettingsOpen(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setSettingsOpen(false)}>
+          <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]} onPress={() => {}}>
+            <Text style={styles.sheetTitle}>Settings</Text>
+
+            <View style={styles.settingRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.settingLabel}>Flip tilt direction</Text>
+                <Text style={styles.settingHelp}>Turn on if the map moves the wrong way when you tilt the phone up or down.</Text>
+              </View>
+              <Switch value={invertTilt} onValueChange={setInvertTilt} />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.settingLabel}>Compass offset: {headingOffset}°</Text>
+                <Text style={styles.settingHelp}>Fine-tune if known stars sit slightly left or right of where they should.</Text>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Pill label="−5" onPress={() => setHeadingOffset((o) => Math.max(-45, o - 5))} />
+                <Pill label="+5" onPress={() => setHeadingOffset((o) => Math.min(45, o + 5))} />
+              </View>
+            </View>
+
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Subscription</Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Pill label="Restore" onPress={restore} />
+                <Pill label="Manage" onPress={manageSubscription} />
+              </View>
+            </View>
+
+            {__DEV__ && unconfigured && (
+              <View style={styles.settingRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.settingLabel}>Developer: Pro {isPro ? 'on' : 'off'}</Text>
+                  <Text style={styles.settingHelp}>RevenueCat key not set. This toggle only exists in development.</Text>
+                </View>
+                <Switch value={isPro} onValueChange={devTogglePro} />
+              </View>
+            )}
+
+            <Text style={styles.credit}>Star data: Hipparcos via d3-celestial (BSD). Positions: astronomy-engine (MIT).</Text>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#03050d' },
+  top: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: 14, gap: 8 },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  topRight: { flexDirection: 'row', gap: 8 },
+  statusPill: { backgroundColor: COLORS.panel, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: COLORS.panelBorder },
+  statusText: { color: COLORS.text, fontSize: 12, fontWeight: '600' },
+  hint: { alignSelf: 'flex-start', color: COLORS.text, backgroundColor: COLORS.panel, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, fontSize: 12, overflow: 'hidden' },
+  bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 14, gap: 8 },
+  sliderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4 },
+  timeLabel: { fontSize: 14, fontWeight: '700' },
+  pills: { gap: 8, paddingRight: 14 },
+  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
+  sheet: { backgroundColor: '#0c1226', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, gap: 18 },
+  sheetTitle: { color: COLORS.text, fontSize: 20, fontWeight: '800' },
+  settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  settingLabel: { color: COLORS.text, fontSize: 15, fontWeight: '600' },
+  settingHelp: { color: COLORS.muted, fontSize: 12, marginTop: 2 },
+  credit: { color: COLORS.muted, fontSize: 11, marginTop: 4 },
+});
