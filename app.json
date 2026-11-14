@@ -47,6 +47,12 @@
         }
       ]
     ],
-    "scheme": "stargaze"
+    "scheme": "stargaze",
+    "owner": "kroszs-team",
+    "extra": {
+      "eas": {
+        "projectId": "0c2d74e9-045e-4171-813e-9912426a9c2c"
+      }
+    }
   }
 }
