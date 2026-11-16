@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { Alert, Platform } from 'react-native';
 
 /** Entitlement identifier configured in the RevenueCat dashboard. */
-export const PRO_ENTITLEMENT = 'pro';
+export const PRO_ENTITLEMENT = 'premium';
 
 const IOS_KEY = process.env.EXPO_PUBLIC_RC_IOS_KEY ?? '';
 
@@ -36,6 +36,8 @@ export function ProProvider({ children }: { children: ReactNode }) {
       try {
         if (__DEV__) await Purchases.setLogLevel(LOG_LEVEL.DEBUG);
         Purchases.configure({ apiKey: IOS_KEY });
+        // Apple Search Ads attribution uses AdServices, which needs no tracking permission.
+        Purchases.enableAdServicesAttributionTokenCollection().catch(() => {});
         Purchases.addCustomerInfoUpdateListener((info) => active && setIsPro(hasPro(info)));
         const info = await Purchases.getCustomerInfo();
         if (active) setIsPro(hasPro(info));
