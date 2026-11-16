@@ -160,20 +160,49 @@ export function computeDsos(data: SkyData, date: Date, obs: Observer): SkyObject
   });
 }
 
-export type BodyEvents = { name: string; riseUtc: Date | null; setUtc: Date | null; alt: number; mag: number };
+export type BodyEvents = {
+  name: string;
+  riseUtc: Date | null;
+  setUtc: Date | null;
+  alt: number;
+  mag: number;
+  /** When it stands highest in a dark sky during the next 24 h, or null if it never clears 10° in darkness. */
+  bestUtc: Date | null;
+  bestAlt: number;
+};
 
-/** Rise and set times (next 24 h) plus current altitude for the "Tonight" planner. */
+/** Sun this far below the horizon counts as dark enough to observe (nautical twilight). */
+export const DARK_SUN_ALT = -6;
+const BEST_MIN_ALT = 10;
+const BEST_STEP_MIN = 10;
+
+/** Rise and set times, best viewing time (next 24 h) and current altitude for the "Tonight" planner. */
 export function tonightPlanner(date: Date, obs: Observer): BodyEvents[] {
   const ob = new Astronomy.Observer(obs.lat, obs.lon, 0);
   const bodies = [
     { body: Astronomy.Body.Moon, name: 'Moon' },
     ...PLANETS.map((p) => ({ body: p.body, name: p.name })),
   ];
+  const sunAlts: number[] = [];
+  for (let m = 0; m <= 24 * 60; m += BEST_STEP_MIN) sunAlts.push(bodyHorizon(Astronomy.Body.Sun, new Date(date.getTime() + m * 60000), ob).alt);
   return bodies.map(({ body, name }) => {
     const rise = Astronomy.SearchRiseSet(body, ob, +1, date, 1);
     const set = Astronomy.SearchRiseSet(body, ob, -1, date, 1);
     const pos = bodyHorizon(body, date, ob);
+    let bestUtc: Date | null = null;
+    let bestAlt = BEST_MIN_ALT;
+    for (let m = 0; m <= 24 * 60; m += BEST_STEP_MIN) {
+      const t = new Date(date.getTime() + m * 60000);
+      if (sunAlts[m / BEST_STEP_MIN] > DARK_SUN_ALT) continue;
+      const a = bodyHorizon(body, t, ob).alt;
+      if (a > bestAlt) {
+        bestAlt = a;
+        bestUtc = t;
+      }
+    }
     return {
+      bestUtc,
+      bestAlt: bestUtc ? bestAlt : 0,
       name,
       riseUtc: rise ? rise.date : null,
       setUtc: set ? set.date : null,

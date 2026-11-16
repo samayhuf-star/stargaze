@@ -12,11 +12,15 @@ export const COLORS = {
   label: 'rgba(210,225,255,0.85)',
   constLabel: 'rgba(130,170,255,0.55)',
   horizon: 'rgba(255,255,255,0.35)',
-  accent: '#7fb2ff',
-  panel: 'rgba(8,12,26,0.78)',
-  panelBorder: 'rgba(160,190,255,0.18)',
-  text: '#e8efff',
-  muted: '#8e9bbd',
+  accent: '#F2B441',
+  panel: 'rgba(20,27,58,0.86)',
+  panelBorder: 'rgba(169,178,204,0.22)',
+  text: '#F4F1E8',
+  muted: '#A9B2CC',
+  bg: '#0A0F24',
+  card: '#141B3A',
+  onAccent: '#0A0F24',
+  dim: '#46527A',
 };
 
 const hex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
@@ -30,3 +34,6 @@ export function skyColor(sunAlt: number, night: boolean): string {
   const b = hex('#3a5f8f');
   return toHex(a.map((v, i) => v + (b[i] - v) * t));
 }
+
+/** Heading typeface, loaded in the root layout. Falls back to the system font until ready. */
+export const HEADING_FONT = 'SpaceGrotesk_700Bold';

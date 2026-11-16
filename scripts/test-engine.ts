@@ -58,6 +58,14 @@ console.log('Planets now:', ss.filter((o) => o.kind === 'planet').map((p) => `${
 // 6. Tonight planner
 const planner = tonightPlanner(date, obs);
 ok('planner has 8 bodies', planner.length === 8);
+for (const r of planner) {
+  if (!r.bestUtc) continue;
+  const sunThen = computeSolarSystem(r.bestUtc, obs).find((o) => o.id === 'Sun')!.alt;
+  ok(`best time for ${r.name} is in a dark sky`, sunThen <= -6, `sun=${sunThen.toFixed(1)} alt=${r.bestAlt.toFixed(0)}`);
+  ok(`best time for ${r.name} is above 10 deg and within 24 h`, r.bestAlt > 10 && r.bestUtc.getTime() >= date.getTime() && r.bestUtc.getTime() <= date.getTime() + 86400000);
+}
+const polar = tonightPlanner(new Date('2026-06-21T12:00:00Z'), { lat: 78, lon: 15 });
+ok('midnight sun: nothing has a best time', polar.every((r) => r.bestUtc === null && r.bestAlt === 0));
 
 // 7. Projection: object at centre projects to centre; object 10 deg right is right of centre
 const view = { az: 120, alt: 35, fov: 60 };

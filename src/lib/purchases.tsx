@@ -52,7 +52,7 @@ export function ProProvider({ children }: { children: ReactNode }) {
 
   const openPaywall = useCallback(async () => {
     if (unconfigured) {
-      Alert.alert('Purchases not set up', 'Add EXPO_PUBLIC_RC_IOS_KEY (see .env.example) and build a development client to test the RevenueCat paywall.');
+      Alert.alert('Stargaze Pro is not available yet', 'Purchases are not switched on in this test build. Everything in the free version works.');
       return false;
     }
     try {

@@ -35,6 +35,9 @@ export default function Tonight() {
             <Text style={styles.muted}>
               {r.alt > 0 ? `Up now, ${r.alt.toFixed(0)}° high` : 'Below the horizon'} · mag {r.mag.toFixed(1)}
             </Text>
+            <Text style={styles.best}>
+              {r.bestUtc ? `Best at ${fmt(r.bestUtc)}, ${r.bestAlt.toFixed(0)}° high` : 'Not well placed in a dark sky in the next 24 hours'}
+            </Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={styles.time}>Rises {fmt(r.riseUtc)}</Text>
@@ -47,13 +50,14 @@ export default function Tonight() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#080c1a' },
-  center: { flex: 1, backgroundColor: '#080c1a', alignItems: 'center', justifyContent: 'center', padding: 28, gap: 14 },
+  root: { flex: 1, backgroundColor: COLORS.bg },
+  center: { flex: 1, backgroundColor: COLORS.bg, alignItems: 'center', justifyContent: 'center', padding: 28, gap: 14 },
   title: { color: COLORS.text, fontSize: 20, fontWeight: '800', textAlign: 'center' },
   muted: { color: COLORS.muted, fontSize: 13, textAlign: 'left' },
   row: { flexDirection: 'row', backgroundColor: COLORS.panel, borderRadius: 14, borderWidth: 1, borderColor: COLORS.panelBorder, padding: 14, gap: 10 },
   name: { color: COLORS.text, fontSize: 16, fontWeight: '700' },
+  best: { color: COLORS.accent, fontSize: 13, fontWeight: '600', marginTop: 4 },
   time: { color: COLORS.text, fontSize: 13 },
   button: { backgroundColor: COLORS.accent, borderRadius: 22, paddingHorizontal: 26, paddingVertical: 12 },
-  buttonText: { color: '#04101f', fontWeight: '800', fontSize: 15 },
+  buttonText: { color: COLORS.onAccent, fontWeight: '800', fontSize: 15 },
 });

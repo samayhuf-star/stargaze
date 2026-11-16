@@ -45,7 +45,8 @@
         {
           "motionPermission": "Stargaze uses motion sensors to match the star map to where you point your phone."
         }
-      ]
+      ],
+      "expo-font"
     ],
     "scheme": "stargaze",
     "owner": "kroszs-team",
@@ -53,6 +54,7 @@
       "eas": {
         "projectId": "0c2d74e9-045e-4171-813e-9912426a9c2c"
       }
-    }
+    },
+    "backgroundColor": "#0A0F24"
   }
 }
