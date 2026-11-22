@@ -10,7 +10,23 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.samay.stargaze",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Stargaze uses the camera to show the live sky behind the star map.",
+        "NSLocationWhenInUseUsageDescription": "Stargaze uses your location to work out which stars are above you.",
+        "NSMotionUsageDescription": "Stargaze uses motion sensors to match the star map to where you point your phone."
+      },
+      "privacyManifests": {
+        "NSPrivacyTracking": false,
+        "NSPrivacyTrackingDomains": [],
+        "NSPrivacyCollectedDataTypes": [],
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
+          }
+        ]
       }
     },
     "android": {
@@ -54,6 +70,7 @@
       "eas": {
         "projectId": "0c2d74e9-045e-4171-813e-9912426a9c2c"
       }
-    }
+    },
+    "description": "Point your iPhone at the sky and see the stars, constellations, planets, Sun and Moon above you."
   }
 }
