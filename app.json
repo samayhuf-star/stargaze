@@ -69,7 +69,9 @@
     "extra": {
       "eas": {
         "projectId": "0c2d74e9-045e-4171-813e-9912426a9c2c"
-      }
+      },
+      "privacyPolicyUrl": "https://machine.esamay.live/stargaze/privacy",
+      "supportUrl": "https://machine.esamay.live/stargaze/support"
     },
     "description": "Point your iPhone at the sky and see the stars, constellations, planets, Sun and Moon above you."
   }
